@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart';
 
 class ReportScreen extends StatefulWidget {
   @override
@@ -10,6 +12,7 @@ class ReportScreen extends StatefulWidget {
 class _ReportScreenState extends State<ReportScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _idController = TextEditingController(); // Changed to _idController
   File? _image;
   final ImagePicker _picker = ImagePicker();
 
@@ -20,30 +23,45 @@ class _ReportScreenState extends State<ReportScreen> {
     });
   }
 
-  void _submitReport() {
+  Future<void> _submitReport() async {
     if (_formKey.currentState!.validate()) {
-      // Collect report details
       final String description = _descriptionController.text;
       final File? photo = _image;
 
-      // Here, add the logic to submit the report to your backend.
+      // Prepare the request
+      var uri = Uri.parse('https://your-api-url.com/api/dengue-reports'); // Update this URL
+      var request = http.MultipartRequest('POST', uri);
 
-      // For demonstration, we'll just print the details
-      print('Description: $description');
+      // Add fields
+      request.fields['user_id'] = '1'; // Replace with actual user ID
+      request.fields['description'] = description;
+      request.fields['latitude'] = '0.0'; // Replace with actual latitude
+      request.fields['longitude'] = '0.0'; // Replace with actual longitude
+
+      // Add photo
       if (photo != null) {
-        print('Photo path: ${photo.path}');
+        var photoStream = http.ByteStream(photo.openRead());
+        var photoLength = await photo.length();
+        var photoFile = http.MultipartFile('photo', photoStream, photoLength, filename: basename(photo.path));
+        request.files.add(photoFile);
       }
 
-      // Show a success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Report submitted successfully!')),
-      );
+      // Send the request
+      var response = await request.send();
 
-      // Clear the form
-      _formKey.currentState!.reset();
-      setState(() {
-        _image = null;
-      });
+      if (response.statusCode == 201) {
+        ScaffoldMessenger.of(context as BuildContext).showSnackBar(
+          SnackBar(content: Text('Report submitted successfully!')),
+        );
+        _formKey.currentState!.reset();
+        setState(() {
+          _image = null;
+        });
+      } else {
+        ScaffoldMessenger.of(context as BuildContext).showSnackBar(
+          SnackBar(content: Text('Failed to submit report.')),
+        );
+      }
     }
   }
 
@@ -59,6 +77,22 @@ class _ReportScreenState extends State<ReportScreen> {
           key: _formKey,
           child: ListView(
             children: [
+              TextFormField(
+                controller: _idController, // Changed to _idController
+                decoration: InputDecoration(
+                  labelText: 'ID Number', // Updated label
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter an ID number';
+                  }
+                  // Add additional validation if necessary, e.g., check if the ID number is numeric
+                  return null;
+                },
+                keyboardType: TextInputType.number, // Assuming ID is numeric
+              ),
+              SizedBox(height: 20),
               TextFormField(
                 controller: _descriptionController,
                 decoration: InputDecoration(
